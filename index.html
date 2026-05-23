@@ -1,0 +1,1915 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BLACK ZONE // 黑域系统 v8.0.0</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Orbitron:wght@400;500;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<style>
+
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --cyan:#00e5ff;--cyan-dim:#007a8a;--cyan-glow:rgba(0,229,255,.12);
+  --red:#c41030;--red-dim:#7a0a1e;--red-glow:rgba(196,16,48,.1);
+  --green:#00e676;--green-dim:#008f4e;
+  --amber:#ff9100;--amber-dim:#a35b00;
+  --purple:#d500f9;--purple-dim:#8a00a3;
+  --white:#d0e8f0;--dim:#2a3a4a;--bg:#010810;
+}
+html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(--cyan);font-family:'JetBrains Mono',monospace;font-size:15px}
+
+/* ===== LAYER STACK ===== */
+#threeCanvas{position:fixed;top:0;left:0;width:100%;height:100%;z-index:0}
+#gridCanvas{position:fixed;top:0;left:0;width:100%;height:100%;z-index:1;opacity:.25}
+#matrixCanvas{position:fixed;top:0;left:0;width:100%;height:100%;z-index:2;opacity:.45}
+#particleCanvas{position:fixed;top:0;left:0;width:100%;height:100%;z-index:3;opacity:.4}
+#crtCanvas{position:fixed;top:0;left:0;width:100%;height:100%;z-index:4;pointer-events:none;mix-blend-mode:screen}
+#glitchCanvas{position:fixed;top:0;left:0;width:100%;height:100%;z-index:101;pointer-events:none;opacity:0}
+#fogCanvas{position:fixed;top:0;left:0;width:100%;height:100%;z-index:1;opacity:.08;pointer-events:none}
+
+/* ===== OVERLAYS ===== */
+.scanlines{position:fixed;top:0;left:0;width:100%;height:100%;z-index:100;pointer-events:none;
+  background:repeating-linear-gradient(0deg,transparent,transparent 1px,rgba(0,229,255,.012) 1px,rgba(0,229,255,.012) 2px);animation:scanShift 10s linear infinite}
+@keyframes scanShift{0%{transform:translateY(0)}100%{transform:translateY(4px)}}
+
+.vignette{position:fixed;top:0;left:0;width:100%;height:100%;z-index:99;pointer-events:none;
+  background:radial-gradient(ellipse at center,transparent 40%,rgba(0,0,0,.7) 100%)}
+
+.film-grain{position:fixed;top:-50%;left:-50%;width:200%;height:200%;z-index:98;pointer-events:none;opacity:.035;
+  background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 512 512' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  animation:grainShift .3s steps(8) infinite}
+@keyframes grainShift{0%{transform:translate(0)}12%{transform:translate(-3%,-3%)}25%{transform:translate(2%,1%)}37%{transform:translate(-1%,3%)}50%{transform:translate(3%,-2%)}62%{transform:translate(-2%,1%)}75%{transform:translate(1%,-3%)}87%{transform:translate(-3%,2%)}100%{transform:translate(0)}}
+
+.noise-static{position:fixed;top:0;left:0;width:100%;height:100%;z-index:97;pointer-events:none;opacity:.015;
+  background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(255,255,255,.03) 2px,rgba(255,255,255,.03) 4px);animation:staticFlicker .1s steps(3) infinite}
+@keyframes staticFlicker{0%{opacity:.015}50%{opacity:.025}100%{opacity:.015}}
+
+/* ===== BOOT SCREEN ===== */
+#bootScreen{position:fixed;top:0;left:0;width:100%;height:100%;z-index:500;background:#000;display:flex;flex-direction:column;justify-content:center;align-items:center;transition:opacity 2s ease}
+#bootScreen.hidden{opacity:0;pointer-events:none}
+#bootLogo{font-family:'Orbitron',sans-serif;font-size:56px;font-weight:900;color:var(--cyan);letter-spacing:14px;
+  text-shadow:0 0 60px rgba(0,229,255,.4),0 0 120px rgba(0,229,255,.15),0 0 200px rgba(0,229,255,.05);
+  margin-bottom:30px;opacity:0;transition:opacity 1.5s ease;position:relative}
+#bootLogo.show{opacity:1}
+#bootLogo::after{content:'BLACK ZONE';position:absolute;top:0;left:0;width:100%;height:100%;
+  color:var(--red);clip-path:inset(0 100% 0 0);animation:bootGlitch 4s infinite}
+@keyframes bootGlitch{0%,92%,100%{clip-path:inset(0 100% 0 0)}93%{clip-path:inset(20% 0 60% 0);transform:translateX(4px)}
+  94%{clip-path:inset(60% 0 10% 0);transform:translateX(-3px)}95%{clip-path:inset(0 100% 0 0)}}
+
+#bootText{text-align:left;width:700px;max-width:90%;max-height:50vh;overflow-y:auto;font-size:13px;line-height:1.9;color:var(--cyan-dim)}
+#bootText::-webkit-scrollbar{width:2px}#bootText::-webkit-scrollbar-thumb{background:var(--cyan-dim)}
+#bootText .ok{color:var(--green)}#bootText .warn{color:var(--amber)}#bootText .err{color:var(--red)}
+#bootText .title{color:var(--cyan);font-family:'Orbitron',sans-serif;font-size:16px;font-weight:700;letter-spacing:3px;margin-bottom:8px}
+#bootProgressBar{width:700px;max-width:90%;height:2px;background:rgba(0,229,255,.08);margin-top:16px;border-radius:1px}
+#bootProgressFill{height:100%;background:linear-gradient(90deg,var(--cyan),var(--green));width:0%;transition:width .3s ease;box-shadow:0 0 12px var(--cyan)}
+#bootPercentage{font-size:12px;color:var(--dim);margin-top:6px;font-family:'Share Tech Mono',monospace}
+
+/* ===== MAIN UI ===== */
+#mainUI{position:fixed;top:0;left:0;width:100%;height:100%;z-index:50;opacity:0;transition:opacity 1.5s ease;pointer-events:none;display:none}
+#mainUI.visible{opacity:1;pointer-events:auto;display:block}
+
+/* ===== TOP HUD ===== */
+.top-hud{position:absolute;top:0;left:0;width:100%;height:46px;display:flex;align-items:center;justify-content:space-between;padding:0 20px;
+  background:linear-gradient(180deg,rgba(1,8,16,.96) 0%,rgba(1,8,16,.5) 80%,transparent 100%);
+  border-bottom:1px solid rgba(0,229,255,.05);z-index:60;animation:uiDrift 20s ease-in-out infinite alternate}
+@keyframes uiDrift{0%{transform:translateX(0)}100%{transform:translateX(1px)}}
+.top-hud .left{display:flex;align-items:center;gap:14px}
+.logo{font-family:'Orbitron',sans-serif;font-size:14px;font-weight:700;color:var(--cyan);letter-spacing:3px;
+  text-shadow:0 0 8px rgba(0,229,255,.3);animation:logoFlicker 8s infinite}
+@keyframes logoFlicker{0%,96%,100%{opacity:1}97%{opacity:.6}98%{opacity:1}99%{opacity:.4}}
+.sep{width:1px;height:18px;background:rgba(0,229,255,.1)}
+.sys-status{font-size:11px;color:var(--green);letter-spacing:1px;font-family:'Share Tech Mono',monospace;
+  animation:statusPulse 3s ease-in-out infinite}
+@keyframes statusPulse{0%,100%{opacity:1}50%{opacity:.6}}
+.top-hud .right{display:flex;align-items:center;gap:18px}
+.hud-item{display:flex;flex-direction:column;align-items:flex-end;gap:1px}
+.hud-label{font-size:9px;color:var(--dim);letter-spacing:2px;text-transform:uppercase}
+.hud-value{font-size:12px;color:var(--cyan);font-family:'Share Tech Mono',monospace}
+
+/* ===== AUDIO VIS ===== */
+.audio-vis{display:flex;gap:2px;align-items:flex-end;height:14px}
+.audio-bar{width:2px;background:var(--cyan);border-radius:1px;animation:audioWave 1.4s ease-in-out infinite}
+.audio-bar:nth-child(1){height:3px;animation-delay:0s}
+.audio-bar:nth-child(2){height:6px;animation-delay:.12s}
+.audio-bar:nth-child(3){height:10px;animation-delay:.24s}
+.audio-bar:nth-child(4){height:5px;animation-delay:.36s}
+.audio-bar:nth-child(5){height:8px;animation-delay:.48s}
+@keyframes audioWave{0%,100%{height:2px}50%{height:12px}}
+
+/* ===== TERMINAL ===== */
+.split-layout{position:absolute;top:52px;left:14px;right:14px;bottom:38px;display:flex;z-index:55}
+.drag-divider{width:6px;cursor:col-resize;background:rgba(0,229,255,.04);border-left:1px solid rgba(0,229,255,.06);border-right:1px solid rgba(0,229,255,.06);position:relative;flex-shrink:0;transition:background .2s}
+.drag-divider:hover{background:rgba(0,229,255,.1)}
+.drag-divider:active{background:rgba(0,229,255,.15)}
+.drag-divider::after{content:'';position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:2px;height:30px;background:rgba(0,229,255,.15);border-radius:1px}
+.drag-divider:hover::after{background:rgba(0,229,255,.3);height:40px}
+
+.terminal-container{flex:1;min-width:200px;
+  background:rgba(1,6,12,.9);border:1px solid rgba(0,229,255,.04);border-radius:2px;
+  backdrop-filter:blur(6px);display:flex;flex-direction:column;z-index:55;overflow:hidden;
+  animation:termDrift 25s ease-in-out infinite alternate}
+@keyframes termDrift{0%{transform:translate(0,0)}33%{transform:translate(.5px,-.3px)}66%{transform:translate(-.3px,.5px)}100%{transform:translate(0,0)}}
+
+.terminal-header{height:26px;display:flex;align-items:center;justify-content:space-between;padding:0 10px;
+  border-bottom:1px solid rgba(0,229,255,.04);background:rgba(0,12,18,.5)}
+.terminal-header .tabs{display:flex;gap:0}
+.terminal-tab{padding:3px 12px;font-size:10px;letter-spacing:2px;color:var(--dim);cursor:pointer;
+  border-bottom:1px solid transparent;transition:all .3s}
+.terminal-tab.active{color:var(--cyan);border-bottom-color:var(--cyan);background:rgba(0,229,255,.02)}
+.terminal-tab:hover:not(.active){color:var(--cyan-dim)}
+.terminal-header .win-btns{display:flex;gap:5px}
+.win-btn{width:8px;height:8px;border-radius:50%;border:1px solid rgba(0,229,255,.12)}
+.win-btn.close{border-color:var(--red-dim)}.win-btn.minimize{border-color:var(--amber-dim)}.win-btn.maximize{border-color:var(--green-dim)}
+
+.terminal-body{flex:1;overflow-y:auto;padding:10px 14px;scroll-behavior:smooth}
+.terminal-body::-webkit-scrollbar{width:3px}
+.terminal-body::-webkit-scrollbar-track{background:transparent}
+.terminal-body::-webkit-scrollbar-thumb{background:rgba(0,229,255,.1);border-radius:2px}
+
+.output-line{margin:1px 0;line-height:1.7;font-size:13px;white-space:pre-wrap;word-break:break-all}
+.output-line.system{color:var(--dim)}.output-line.info{color:var(--cyan)}.output-line.success{color:var(--green)}
+.output-line.warning{color:var(--amber)}.output-line.error{color:var(--red)}.output-line.purple{color:var(--purple)}
+.output-line.ascii{color:var(--cyan);font-size:11px;line-height:1.15;opacity:.6}
+.output-line.highlight{color:var(--white);text-shadow:0 0 6px rgba(0,229,255,.2)}
+.output-line.auto{color:var(--cyan-dim);opacity:.7;font-size:12px}
+
+.input-line{display:flex;align-items:center;margin-top:3px}
+.prompt{color:var(--green);margin-right:5px;font-weight:500;white-space:nowrap;font-size:13px}
+.input-field{flex:1;background:transparent;border:none;outline:none;color:var(--white);font-family:'JetBrains Mono',monospace;font-size:13px;caret-color:var(--cyan);letter-spacing:.5px}
+.input-field::placeholder{color:var(--dim);opacity:.5;font-size:12px}
+
+/* ===== TAB CONTENT ===== */
+.tab-content{min-height:100%}
+.tab-content.active{display:block}
+.monitor-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:6px 0}
+.monitor-card{background:rgba(0,229,255,.02);border:1px solid rgba(0,229,255,.06);border-radius:2px;padding:8px;font-size:11px}
+.monitor-card .mc-title{color:var(--dim);letter-spacing:2px;font-size:9px;text-transform:uppercase;margin-bottom:5px;border-bottom:1px solid rgba(0,229,255,.04);padding-bottom:3px}
+.monitor-card .mc-val{color:var(--cyan);font-family:'Share Tech Mono',monospace;font-size:13px}
+.monitor-card .mc-val.green{color:var(--green)}.monitor-card .mc-val.red{color:var(--red)}.monitor-card .mc-val.amber{color:var(--amber)}
+.net-scan-result{margin:4px 0;padding:6px;border-left:2px solid var(--cyan);background:rgba(0,229,255,.02)}
+.net-scan-result .nsr-ip{color:var(--green);font-weight:bold;font-size:13px}
+.net-scan-result .nsr-status{color:var(--cyan);font-size:13px}
+.net-scan-result .nsr-ports{color:var(--dim);font-size:12px;margin-top:2px}
+.net-scan-progress{display:flex;align-items:center;gap:6px;margin:4px 0;font-size:13px;color:var(--cyan-dim)}
+.net-scan-progress .nsp-bar{flex:1;height:3px;background:rgba(0,229,255,.08);border-radius:1px;overflow:hidden}
+.net-scan-progress .nsp-fill{height:100%;background:var(--cyan);width:0%;transition:width .1s linear}
+
+/* ===== SIDE PANELS ===== */
+.side-panel{width:260px;min-width:160px;max-width:500px;display:flex;flex-direction:column;gap:6px;overflow-y:auto;overflow-x:hidden}
+.panel-box{background:rgba(1,8,14,.88);border:1px solid rgba(0,229,255,.05);border-radius:2px;padding:8px 10px;
+  backdrop-filter:blur(3px);animation:panelInstability 15s ease-in-out infinite}
+@keyframes panelInstability{0%,100%{transform:translate(0,0);opacity:1}25%{transform:translate(.3px,0);opacity:.97}
+  50%{transform:translate(0,.3px);opacity:1}75%{transform:translate(-.3px,0);opacity:.98}}
+.panel-title{font-size:11px;color:var(--dim);letter-spacing:3px;text-transform:uppercase;margin-bottom:6px;
+  border-bottom:1px solid rgba(0,229,255,.04);padding-bottom:4px}
+.sys-stat{display:flex;justify-content:space-between;align-items:center;margin:2px 0;font-size:13px}
+.sys-stat .label{color:var(--dim);font-family:'Share Tech Mono',monospace}
+.sys-stat .val{color:var(--cyan);font-family:'Share Tech Mono',monospace}
+.sys-stat .val.high{color:var(--red)}.sys-stat .val.warn{color:var(--amber)}
+.bar-track{width:100%;height:2px;background:rgba(0,229,255,.04);margin-top:2px;border-radius:1px;overflow:hidden}
+.bar-fill{height:100%;border-radius:1px;transition:width 1.5s ease;position:relative}
+.bar-fill::after{content:'';position:absolute;right:0;top:0;width:4px;height:100%;background:inherit;filter:blur(3px);opacity:.6}
+.bar-fill.cyan{background:var(--cyan)}.bar-fill.green{background:var(--green)}
+.bar-fill.amber{background:var(--amber)}.bar-fill.red{background:var(--red)}
+
+/* ===== RADAR ===== */
+.radar-container{width:100%;height:90px;position:relative;overflow:hidden}
+#radarCanvas{width:100%;height:90px}
+
+/* ===== BOTTOM BAR ===== */
+.bottom-bar{position:absolute;bottom:0;left:0;width:100%;height:30px;display:flex;align-items:center;justify-content:space-between;padding:0 20px;
+  background:linear-gradient(0deg,rgba(1,8,16,.96) 0%,rgba(1,8,16,.5) 80%,transparent 100%);
+  border-top:1px solid rgba(0,229,255,.04);z-index:60}
+.bottom-bar .left,.bottom-bar .right{display:flex;align-items:center;gap:14px}
+.bottom-bar span{font-size:10px;color:var(--dim);letter-spacing:1px;font-family:'Share Tech Mono',monospace}
+.bottom-bar .live{color:var(--green);animation:pulse 2.5s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+
+/* ===== HOLO CARD ===== */
+.holo-card{position:absolute;bottom:44px;left:14px;width:244px;background:linear-gradient(135deg,rgba(0,229,255,.02),rgba(1,8,14,.92));
+  border:1px solid rgba(0,229,255,.08);border-radius:2px;padding:12px;z-index:55;backdrop-filter:blur(4px);
+  opacity:0;transform:translateY(16px);transition:all .6s ease;pointer-events:none}
+.holo-card.visible{opacity:1;transform:translateY(0);pointer-events:auto}
+.holo-card .title{font-family:'Orbitron',sans-serif;font-size:10px;letter-spacing:3px;color:var(--cyan);margin-bottom:8px}
+.holo-card .data-row{display:flex;justify-content:space-between;margin:2px 0;font-size:11px}
+.holo-card .data-row .k{color:var(--dim)}.holo-card .data-row .v{color:var(--green);font-family:'Share Tech Mono',monospace}
+
+/* ===== CORNER DECORATIONS ===== */
+.corner-deco{position:fixed;width:50px;height:50px;z-index:90;pointer-events:none}
+.corner-deco.tl{top:6px;left:6px;border-top:1px solid rgba(0,229,255,.08);border-left:1px solid rgba(0,229,255,.08)}
+.corner-deco.tr{top:6px;right:6px;border-top:1px solid rgba(0,229,255,.08);border-right:1px solid rgba(0,229,255,.08)}
+.corner-deco.bl{bottom:6px;left:6px;border-bottom:1px solid rgba(0,229,255,.08);border-left:1px solid rgba(0,229,255,.08)}
+.corner-deco.br{bottom:6px;right:6px;border-bottom:1px solid rgba(0,229,255,.08);border-right:1px solid rgba(0,229,255,.08)}
+
+/* ===== WARNING OVERLAY ===== */
+.warning-overlay{position:fixed;top:0;left:0;width:100%;height:100%;z-index:150;pointer-events:none;display:flex;justify-content:center;align-items:center;opacity:0;transition:opacity .4s}
+.warning-overlay.active{opacity:1}
+.warning-box{background:rgba(196,16,48,.06);border:1px solid var(--red);padding:18px 36px;text-align:center;animation:warnPulse 1.5s infinite}
+.warning-box h2{font-family:'Orbitron',sans-serif;color:var(--red);font-size:14px;letter-spacing:5px;margin-bottom:6px}
+.warning-box p{color:var(--red-dim);font-size:11px;letter-spacing:2px}
+@keyframes warnPulse{0%,100%{box-shadow:0 0 15px rgba(196,16,48,.08)}50%{box-shadow:0 0 30px rgba(196,16,48,.15)}}
+
+/* ===== FLOATING DATA ===== */
+.float-data{position:fixed;font-size:10px;color:rgba(0,229,255,.04);font-family:'Share Tech Mono',monospace;
+  pointer-events:none;z-index:4;white-space:nowrap;animation:floatUp 25s linear infinite}
+@keyframes floatUp{0%{transform:translateY(100vh);opacity:0}5%{opacity:1}95%{opacity:1}100%{transform:translateY(-80px);opacity:0}}
+
+/* ===== HEX STREAM ===== */
+.hex-stream{position:fixed;top:0;left:0;width:100%;height:100%;z-index:3;pointer-events:none;opacity:.04;font-size:11px;line-height:1.3;color:var(--cyan);overflow:hidden}
+
+/* ===== CHROMATIC ABERRATION LAYER ===== */
+.chromatic-layer{position:fixed;top:0;left:0;width:100%;height:100%;z-index:96;pointer-events:none;opacity:0;mix-blend-mode:screen}
+.chromatic-layer.active{animation:chromaFlash .2s steps(3) forwards}
+@keyframes chromaFlash{0%{opacity:.15;background:linear-gradient(90deg,rgba(255,0,0,.03),transparent 33%,transparent 66%,rgba(0,0,255,.03))}
+  50%{opacity:.08}100%{opacity:0}}
+
+/* ===== HORIZONTAL TEAR ===== */
+.h-tear{position:fixed;left:0;width:100%;height:2px;z-index:102;pointer-events:none;opacity:0;
+  background:linear-gradient(90deg,transparent,rgba(0,229,255,.15),rgba(255,255,255,.05),rgba(0,229,255,.15),transparent)}
+.h-tear.active{animation:tearPass .4s linear forwards}
+@keyframes tearPass{0%{opacity:1;transform:translateX(-100%)}100%{opacity:0;transform:translateX(100vw)}}
+
+/* ===== UI INSTABILITY ===== */
+@keyframes panelFlicker{0%,100%{opacity:1}48%{opacity:1}49%{opacity:.7}50%{opacity:1}51%{opacity:.85}52%{opacity:1}}
+@keyframes subtleShift{0%,100%{transform:translate(0)}25%{transform:translate(.5px,0)}50%{transform:translate(0,.5px)}75%{transform:translate(-.5px,0)}}
+.flicker-active{animation:panelFlicker 6s infinite}
+.shift-active{animation:subtleShift 12s ease-in-out infinite}
+
+/* ===== ANIMATIONS ===== */
+@keyframes fadeInUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.animate-in{animation:fadeInUp .5s ease forwards}
+
+/* ===== RESPONSIVE ===== */
+@media(max-width:900px){
+  .side-panel{display:none}
+  .drag-divider{display:none}
+  .holo-card{display:none}
+}
+</style>
+</head>
+<body>
+
+<!-- ===== LAYER STACK ===== -->
+<canvas id="threeCanvas"></canvas>
+<canvas id="gridCanvas"></canvas>
+<canvas id="matrixCanvas"></canvas>
+<canvas id="particleCanvas"></canvas>
+<canvas id="fogCanvas"></canvas>
+<canvas id="crtCanvas"></canvas>
+<canvas id="glitchCanvas"></canvas>
+
+<!-- ===== OVERLAYS ===== -->
+<div class="scanlines"></div>
+<div class="vignette"></div>
+<div class="film-grain"></div>
+<div class="noise-static"></div>
+<div class="chromatic-layer" id="chromaLayer"></div>
+<div class="h-tear" id="hTear"></div>
+
+<!-- ===== CORNERS ===== -->
+<div class="corner-deco tl"></div><div class="corner-deco tr"></div>
+<div class="corner-deco bl"></div><div class="corner-deco br"></div>
+
+<!-- ===== HEX STREAM ===== -->
+<div class="hex-stream" id="hexStream"></div>
+
+<!-- ===== FLOATING DATA ===== -->
+<div id="floatingData"></div>
+
+<!-- ===== WARNING ===== -->
+<div class="warning-overlay" id="warningOverlay">
+  <div class="warning-box">
+    <h2>/// 入侵检测 ///</h2>
+    <p>未授权访问尝试已记录</p>
+    <p style="margin-top:5px;color:var(--red)">追踪已启动 — 来源: 未知</p>
+  </div>
+</div>
+
+<!-- ===== BOOT ===== -->
+<div id="bootScreen">
+  <div id="bootLogo">BLACK ZONE</div>
+  <div id="bootText"></div>
+  <div id="bootProgressBar"><div id="bootProgressFill"></div></div>
+  <div id="bootPercentage"></div>
+</div>
+
+<!-- ===== MAIN UI ===== -->
+<div id="mainUI">
+  <div class="top-hud">
+    <div class="left">
+      <div class="logo">BLACK ZONE</div>
+      <div class="sep"></div>
+      <div class="sys-status" id="sysStatus">系统在线</div>
+      <div class="sep"></div>
+      <div class="audio-vis"><div class="audio-bar"></div><div class="audio-bar"></div><div class="audio-bar"></div><div class="audio-bar"></div><div class="audio-bar"></div></div>
+    </div>
+    <div class="right">
+      <div class="hud-item"><div class="hud-label">上行链路</div><div class="hud-value" id="uplinkStatus">加密中</div></div>
+      <div class="hud-item"><div class="hud-label">延迟</div><div class="hud-value" id="latency">12ms</div></div>
+      <div class="hud-item"><div class="hud-label">节点</div><div class="hud-value" id="nodeCount">2,847</div></div>
+      <div class="hud-item"><div class="hud-label">时间</div><div class="hud-value" id="hudTime">00:00:00</div></div>
+    </div>
+  </div>
+
+  <!-- TERMINAL -->
+  <div class="split-layout">
+  <div class="terminal-container">
+    <div class="terminal-header">
+      <div class="tabs">
+        <div class="terminal-tab active">root@黑域</div>
+        <div class="terminal-tab">监控</div>
+        <div class="terminal-tab">网络扫描</div>
+      </div>
+      <div class="win-btns">
+        <div class="win-btn minimize"></div><div class="win-btn maximize"></div><div class="win-btn close"></div>
+      </div>
+    </div>
+    <div class="terminal-body" id="terminalBody">
+      <!-- 终端标签页 -->
+      <div id="tabTerminal" class="tab-content active">
+        <div id="terminalOutput"></div>
+        <div class="input-line" id="inputLine">
+          <span class="prompt">root@黑域:~$</span>
+          <input type="text" class="input-field" id="inputField" spellcheck="false" autocomplete="off">
+        </div>
+      </div>
+      <!-- 监控标签页 -->
+      <div id="tabMonitor" class="tab-content" style="display:none">
+        <div id="monitorOutput"></div>
+      </div>
+      <!-- 网络扫描标签页 -->
+      <div id="tabNetScan" class="tab-content" style="display:none">
+        <div id="netScanOutput"></div>
+        <div class="input-line">
+          <span class="prompt">scan@黑域:~$</span>
+          <input type="text" class="input-field" id="netScanInput" placeholder="输入 IP 或域名..." spellcheck="false" autocomplete="off">
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- DRAG DIVIDER -->
+  <div class="drag-divider" id="dragDivider"></div>
+
+  <!-- SIDE PANELS -->
+  <div class="side-panel" id="sidePanel">
+    <div class="panel-box">
+      <div class="panel-title">系统资源</div>
+      <div class="sys-stat"><span class="label">CPU</span><span class="val" id="cpuVal">34%</span></div>
+      <div class="bar-track"><div class="bar-fill cyan" id="cpuBar" style="width:34%"></div></div>
+      <div class="sys-stat"><span class="label">MEM</span><span class="val" id="memVal">67%</span></div>
+      <div class="bar-track"><div class="bar-fill amber" id="memBar" style="width:67%"></div></div>
+      <div class="sys-stat"><span class="label">GPU</span><span class="val" id="gpuVal">89%</span></div>
+      <div class="bar-track"><div class="bar-fill red" id="gpuBar" style="width:89%"></div></div>
+      <div class="sys-stat"><span class="label">网络 I/O</span><span class="val" id="netIO">2.4 GB/s</span></div>
+      <div class="bar-track"><div class="bar-fill green" id="netBar" style="width:45%"></div></div>
+    </div>
+
+    <div class="panel-box">
+      <div class="panel-title">威胁矩阵</div>
+      <div class="sys-stat"><span class="label">防火墙</span><span class="val">活跃</span></div>
+      <div class="sys-stat"><span class="label">入侵检测</span><span class="val">武装</span></div>
+      <div class="sys-stat"><span class="label">已拦截</span><span class="val high" id="blockedCount">1,247</span></div>
+      <div class="sys-stat"><span class="label">告警</span><span class="val warn" id="alertCount">23</span></div>
+      <div class="sys-stat"><span class="label">加密</span><span class="val">AES-512</span></div>
+    </div>
+
+    <div class="panel-box">
+      <div class="panel-title">雷达扫描</div>
+      <div class="radar-container"><canvas id="radarCanvas" width="212" height="90"></canvas></div>
+    </div>
+
+    <div class="panel-box">
+      <div class="panel-title">活跃连接</div>
+      <div id="connList" style="font-size:12px;font-family:'Share Tech Mono',monospace;color:var(--dim);max-height:80px;overflow:hidden"></div>
+    </div>
+  </div>
+  </div> <!-- end split-layout -->
+
+  <!-- BOTTOM BAR -->
+  <div class="bottom-bar">
+    <div class="left">
+      <span>安全通道</span><span>|</span>
+      <span class="live">● 在线</span><span>|</span>
+      <span id="packetCount">数据包: 0</span>
+    </div>
+    <div class="right">
+      <span>黑域终端 v8.0.0</span><span>|</span>
+      <span>机密 // 5级权限</span>
+    </div>
+  </div>
+</div>
+
+<!-- HOLO CARD -->
+<div class="holo-card" id="holoCard">
+  <div class="title">目标锁定</div>
+  <div class="data-row"><span class="k">目标</span><span class="v" id="holoTarget">---</span></div>
+  <div class="data-row"><span class="k">位置</span><span class="v" id="holoLocation">---</span></div>
+  <div class="data-row"><span class="k">协议</span><span class="v" id="holoProtocol">---</span></div>
+  <div class="data-row"><span class="k">状态</span><span class="v" id="holoStatus">---</span></div>
+  <div class="data-row"><span class="k">加密</span><span class="v" id="holoEnc">---</span></div>
+</div>
+
+<script src="three.min.js"></script>
+<script>
+// =====================================================================
+//  BLACK ZONE v8.0 — 电影级赛博朋克 AI 终端系统
+//  模块化架构：Three.js核心 / Canvas特效 / 音频系统 / AI日志引擎
+// =====================================================================
+
+const $ = s => document.querySelector(s);
+const $$ = s => document.querySelectorAll(s);
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+// =====================================================================
+//  模块一：THREE.JS 全息核心
+// =====================================================================
+const ThreeCore = (() => {
+  try {
+  const canvas = $('#threeCanvas');
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(60, innerWidth / innerHeight, 0.1, 1000);
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+
+  renderer.setSize(innerWidth, innerHeight);
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  renderer.setClearColor(0x010810, 1);
+  camera.position.z = 5;
+
+  // 外层线框球
+  const outerGeo = new THREE.IcosahedronGeometry(1.6, 1);
+  const outerMat = new THREE.MeshBasicMaterial({ color: 0x00e5ff, wireframe: true, transparent: true, opacity: 0.12 });
+  const outerSphere = new THREE.Mesh(outerGeo, outerMat);
+  scene.add(outerSphere);
+
+  // 内层实心球
+  const innerGeo = new THREE.IcosahedronGeometry(0.8, 2);
+  const innerMat = new THREE.MeshBasicMaterial({ color: 0x00e5ff, wireframe: true, transparent: true, opacity: 0.25 });
+  const innerSphere = new THREE.Mesh(innerGeo, innerMat);
+  scene.add(innerSphere);
+
+  // 核心球
+  const coreGeo = new THREE.SphereGeometry(0.2, 16, 16);
+  const coreMat = new THREE.MeshBasicMaterial({ color: 0x00e5ff, transparent: true, opacity: 0.6 });
+  const coreSphere = new THREE.Mesh(coreGeo, coreMat);
+  scene.add(coreSphere);
+
+  // 旋转环
+  const torusGeo = new THREE.TorusGeometry(1.2, 0.008, 8, 64);
+  const torusMat = new THREE.MeshBasicMaterial({ color: 0x00e5ff, transparent: true, opacity: 0.15 });
+  const torus1 = new THREE.Mesh(torusGeo, torusMat);
+  const torus2 = new THREE.Mesh(torusGeo, torusMat.clone());
+  torus2.rotation.x = Math.PI / 3;
+  torus2.rotation.y = Math.PI / 4;
+  scene.add(torus1, torus2);
+
+  // 漂浮粒子
+  const pCount = 300;
+  const pGeo = new THREE.BufferGeometry();
+  const pPos = new Float32Array(pCount * 3);
+  for (let i = 0; i < pCount * 3; i++) pPos[i] = (Math.random() - 0.5) * 10;
+  pGeo.setAttribute('position', new THREE.BufferAttribute(pPos, 3));
+  const pMat = new THREE.PointsMaterial({ color: 0x00e5ff, size: 0.015, transparent: true, opacity: 0.5 });
+  const points = new THREE.Points(pGeo, pMat);
+  scene.add(points);
+
+  // 脉冲环
+  const ringGeo = new THREE.RingGeometry(1.8, 1.82, 64);
+  const ringMat = new THREE.MeshBasicMaterial({ color: 0x00e5ff, transparent: true, opacity: 0, side: THREE.DoubleSide });
+  const ring = new THREE.Mesh(ringGeo, ringMat);
+  scene.add(ring);
+
+  let ringPhase = 0;
+  let corePulse = 0;
+
+  function animate() {
+    requestAnimationFrame(animate);
+    const t = Date.now() * 0.001;
+
+    outerSphere.rotation.y = t * 0.08;
+    outerSphere.rotation.x = t * 0.03;
+    innerSphere.rotation.y = -t * 0.15;
+    innerSphere.rotation.z = t * 0.1;
+    coreSphere.scale.setScalar(1 + Math.sin(t * 2) * 0.1);
+
+    torus1.rotation.z = t * 0.12;
+    torus2.rotation.x = t * 0.1;
+    torus2.rotation.z = -t * 0.08;
+
+    points.rotation.y = t * 0.02;
+
+    // 脉冲环动画
+    ringPhase += 0.008;
+    if (ringPhase > 1) ringPhase = 0;
+    ring.scale.setScalar(1 + ringPhase * 0.5);
+    ringMat.opacity = (1 - ringPhase) * 0.08;
+
+    // 核心脉冲
+    corePulse += 0.02;
+    coreMat.opacity = 0.4 + Math.sin(corePulse) * 0.2;
+
+    renderer.render(scene, camera);
+  }
+
+  window.addEventListener('resize', () => {
+    camera.aspect = innerWidth / innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(innerWidth, innerHeight);
+  });
+
+  animate();
+  return { scene, camera, renderer };
+  } catch(e) { console.warn('Three.js init failed:', e); return {}; }
+})();
+
+// =====================================================================
+//  模块二：透视网格 Canvas
+// =====================================================================
+const GridSystem = (() => {
+  const canvas = $('#gridCanvas');
+  const ctx = canvas.getContext('2d');
+  let w, h;
+
+  function resize() { w = canvas.width = innerWidth; h = canvas.height = innerHeight; }
+  resize();
+  window.addEventListener('resize', resize);
+
+  function draw(t) {
+    ctx.clearRect(0, 0, w, h);
+    const sp = 55;
+    const off = (t * 0.008) % sp;
+
+    ctx.strokeStyle = 'rgba(0,229,255,0.025)';
+    ctx.lineWidth = 0.5;
+    for (let x = off; x < w; x += sp) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke(); }
+    for (let y = off; y < h; y += sp) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke(); }
+
+    // 中心十字
+    ctx.strokeStyle = 'rgba(0,229,255,0.04)';
+    ctx.lineWidth = 0.8;
+    ctx.beginPath();
+    ctx.moveTo(w / 2, 0); ctx.lineTo(w / 2, h);
+    ctx.moveTo(0, h / 2); ctx.lineTo(w, h / 2);
+    ctx.stroke();
+  }
+
+  return { draw };
+})();
+
+// =====================================================================
+//  模块三：Matrix 数字雨
+// =====================================================================
+const MatrixRain = (() => {
+  const canvas = $('#matrixCanvas');
+  const ctx = canvas.getContext('2d');
+  const chars = 'アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワヲン0123456789ABCDEF{}[]<>/:;@#$%&*+=黑域系统扫描检测';
+  let w, h, cols = [], speeds = [];
+
+  function resize() {
+    w = canvas.width = innerWidth; h = canvas.height = innerHeight;
+    const n = Math.floor(w / 13);
+    cols = []; speeds = [];
+    for (let i = 0; i < n; i++) { cols[i] = Math.random() * h; speeds[i] = 0.2 + Math.random() * 1; }
+  }
+  resize();
+  window.addEventListener('resize', resize);
+
+  function draw() {
+    ctx.fillStyle = 'rgba(1,8,16,0.05)';
+    ctx.fillRect(0, 0, w, h);
+    ctx.font = '12px JetBrains Mono';
+    for (let i = 0; i < cols.length; i++) {
+      const ch = chars[Math.floor(Math.random() * chars.length)];
+      const x = i * 13, y = cols[i];
+      ctx.fillStyle = `rgba(0,229,255,${0.2 + Math.random() * 0.4})`;
+      ctx.fillText(ch, x, y);
+      if (Math.random() > 0.75) {
+        ctx.fillStyle = 'rgba(0,229,255,0.06)';
+        ctx.fillText(chars[Math.floor(Math.random() * chars.length)], x, y - 13);
+      }
+      if (y > h && Math.random() > 0.985) cols[i] = 0;
+      cols[i] += speeds[i];
+    }
+  }
+
+  return { draw };
+})();
+
+// =====================================================================
+//  模块四：粒子系统
+// =====================================================================
+const ParticleSystem = (() => {
+  const canvas = $('#particleCanvas');
+  const ctx = canvas.getContext('2d');
+  let w, h;
+  const particles = [];
+  const MAX = 60;
+
+  function resize() { w = canvas.width = innerWidth; h = canvas.height = innerHeight; }
+  resize();
+  window.addEventListener('resize', resize);
+
+  class P {
+    constructor() { this.reset(); }
+    reset() {
+      this.x = Math.random() * w; this.y = Math.random() * h;
+      this.vx = (Math.random() - 0.5) * 0.2; this.vy = (Math.random() - 0.5) * 0.2;
+      this.size = Math.random() * 1.5 + 0.3; this.alpha = Math.random() * 0.3 + 0.05;
+      this.pulse = Math.random() * Math.PI * 2; this.ps = 0.008 + Math.random() * 0.02;
+    }
+    update() {
+      this.x += this.vx; this.y += this.vy; this.pulse += this.ps;
+      if (this.x < 0 || this.x > w || this.y < 0 || this.y > h) this.reset();
+    }
+    draw(c) {
+      const a = this.alpha * (0.5 + 0.5 * Math.sin(this.pulse));
+      c.beginPath(); c.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+      c.fillStyle = `rgba(0,229,255,${a})`; c.fill();
+      c.beginPath(); c.arc(this.x, this.y, this.size * 3, 0, Math.PI * 2);
+      c.fillStyle = `rgba(0,229,255,${a * 0.1})`; c.fill();
+    }
+  }
+
+  for (let i = 0; i < MAX; i++) particles.push(new P());
+
+  function draw() {
+    ctx.clearRect(0, 0, w, h);
+    particles.forEach(p => { p.update(); p.draw(ctx); });
+  }
+
+  return { draw };
+})();
+
+// =====================================================================
+//  模块五：体积雾效 Canvas
+// =====================================================================
+const FogSystem = (() => {
+  const canvas = $('#fogCanvas');
+  const ctx = canvas.getContext('2d');
+  let w, h;
+
+  function resize() { w = canvas.width = innerWidth; h = canvas.height = innerHeight; }
+  resize();
+  window.addEventListener('resize', resize);
+
+  function draw(t) {
+    ctx.clearRect(0, 0, w, h);
+    // 漂浮雾团
+    for (let i = 0; i < 5; i++) {
+      const x = (w * 0.2) + Math.sin(t * 0.0003 + i * 1.5) * w * 0.3;
+      const y = (h * 0.3) + Math.cos(t * 0.0004 + i * 2) * h * 0.2;
+      const r = 150 + Math.sin(t * 0.001 + i) * 50;
+      const grad = ctx.createRadialGradient(x, y, 0, x, y, r);
+      grad.addColorStop(0, 'rgba(0,229,255,0.02)');
+      grad.addColorStop(1, 'transparent');
+      ctx.fillStyle = grad;
+      ctx.fillRect(x - r, y - r, r * 2, r * 2);
+    }
+  }
+
+  return { draw };
+})();
+
+// =====================================================================
+//  模块六：CRT 后处理 Canvas（色差 + 扫描线 + 闪烁）
+// =====================================================================
+const CRTSystem = (() => {
+  const canvas = $('#crtCanvas');
+  const ctx = canvas.getContext('2d');
+  let w, h;
+
+  function resize() { w = canvas.width = innerWidth; h = canvas.height = innerHeight; }
+  resize();
+  window.addEventListener('resize', resize);
+
+  function draw(t) {
+    ctx.clearRect(0, 0, w, h);
+
+    // 微弱的水平扫描线亮带
+    const scanY = (t * 0.5) % h;
+    const scanGrad = ctx.createLinearGradient(0, scanY - 30, 0, scanY + 30);
+    scanGrad.addColorStop(0, 'transparent');
+    scanGrad.addColorStop(0.5, 'rgba(0,229,255,0.012)');
+    scanGrad.addColorStop(1, 'transparent');
+    ctx.fillStyle = scanGrad;
+    ctx.fillRect(0, scanY - 30, w, 60);
+
+    // 偶发的水平条纹干扰
+    if (Math.random() > 0.97) {
+      const y = Math.random() * h;
+      const stripH = 1 + Math.random() * 3;
+      ctx.fillStyle = `rgba(0,229,255,${0.02 + Math.random() * 0.03})`;
+      ctx.fillRect(0, y, w, stripH);
+    }
+  }
+
+  return { draw };
+})();
+
+// =====================================================================
+//  模块七：Glitch 引擎（Canvas 级水平撕裂 + 色彩偏移）
+// =====================================================================
+const GlitchEngine = (() => {
+  const canvas = $('#glitchCanvas');
+  const ctx = canvas.getContext('2d');
+  let w, h;
+
+  function resize() { w = canvas.width = innerWidth; h = canvas.height = innerHeight; }
+  resize();
+  window.addEventListener('resize', resize);
+
+  function trigger() {
+    canvas.style.opacity = '1';
+    ctx.clearRect(0, 0, w, h);
+
+    // 水平撕裂条
+    const tearCount = 3 + Math.floor(Math.random() * 5);
+    for (let i = 0; i < tearCount; i++) {
+      const y = Math.random() * h;
+      const th = 1 + Math.random() * 4;
+      const offset = (Math.random() - 0.5) * 20;
+      ctx.fillStyle = `rgba(0,229,255,${0.03 + Math.random() * 0.05})`;
+      ctx.fillRect(offset, y, w, th);
+    }
+
+    // 色彩通道偏移
+    if (Math.random() > 0.5) {
+      ctx.fillStyle = 'rgba(255,0,0,0.015)';
+      ctx.fillRect(2, 0, w, h);
+      ctx.fillStyle = 'rgba(0,0,255,0.015)';
+      ctx.fillRect(-2, 0, w, h);
+    }
+
+    // 随机像素块
+    for (let i = 0; i < 8; i++) {
+      const bx = Math.random() * w;
+      const by = Math.random() * h;
+      const bw = 20 + Math.random() * 80;
+      const bh = 1 + Math.random() * 3;
+      ctx.fillStyle = `rgba(0,229,255,${0.02 + Math.random() * 0.04})`;
+      ctx.fillRect(bx, by, bw, bh);
+    }
+
+    setTimeout(() => { canvas.style.opacity = '0'; ctx.clearRect(0, 0, w, h); }, 80 + Math.random() * 120);
+  }
+
+  // CSS 级色差闪烁
+  function triggerChroma() {
+    const el = $('#chromaLayer');
+    el.classList.add('active');
+    setTimeout(() => el.classList.remove('active'), 200);
+  }
+
+  // 水平撕裂线
+  function triggerTear() {
+    const el = $('#hTear');
+    el.style.top = Math.random() * 100 + '%';
+    el.classList.add('active');
+    setTimeout(() => el.classList.remove('active'), 400);
+  }
+
+  return { trigger, triggerChroma, triggerTear };
+})();
+
+// =====================================================================
+//  模块八：雷达扫描 Canvas
+// =====================================================================
+const RadarSystem = (() => {
+  const canvas = $('#radarCanvas');
+  const ctx = canvas.getContext('2d');
+  const w = 212, h = 90;
+  const cx = w / 2, cy = h / 2;
+  let angle = 0;
+  const blips = [];
+
+  for (let i = 0; i < 6; i++) {
+    blips.push({
+      x: cx + (Math.random() - 0.5) * 160,
+      y: cy + (Math.random() - 0.5) * 70,
+      alpha: Math.random() * 0.5 + 0.2,
+      pulse: Math.random() * Math.PI * 2
+    });
+  }
+
+  function draw() {
+    ctx.clearRect(0, 0, w, h);
+
+    // 背景圆环
+    for (let r = 15; r <= 40; r += 15) {
+      ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2);
+      ctx.strokeStyle = 'rgba(0,229,255,0.06)'; ctx.lineWidth = 0.5; ctx.stroke();
+    }
+
+    // 十字线
+    ctx.strokeStyle = 'rgba(0,229,255,0.06)';
+    ctx.beginPath(); ctx.moveTo(cx, 0); ctx.lineTo(cx, h); ctx.moveTo(0, cy); ctx.lineTo(w, cy); ctx.stroke();
+
+    // 扫描线
+    angle += 0.02;
+    const sx = cx + Math.cos(angle) * 45;
+    const sy = cy + Math.sin(angle) * 40;
+    ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(sx, sy);
+    ctx.strokeStyle = 'rgba(0,229,255,0.3)'; ctx.lineWidth = 1; ctx.stroke();
+
+    // 扫描扇形
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.arc(cx, cy, 45, angle - 0.4, angle);
+    ctx.closePath();
+    const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, 45);
+    grad.addColorStop(0, 'rgba(0,229,255,0.08)');
+    grad.addColorStop(1, 'rgba(0,229,255,0.01)');
+    ctx.fillStyle = grad; ctx.fill();
+
+    // 目标点
+    blips.forEach(b => {
+      b.pulse += 0.03;
+      const a = b.alpha * (0.5 + 0.5 * Math.sin(b.pulse));
+      ctx.beginPath(); ctx.arc(b.x, b.y, 2, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(0,229,255,${a})`; ctx.fill();
+      ctx.beginPath(); ctx.arc(b.x, b.y, 5, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(0,229,255,${a * 0.15})`; ctx.fill();
+    });
+
+    // 偶尔添加新目标
+    if (Math.random() > 0.995 && blips.length < 10) {
+      blips.push({
+        x: cx + (Math.random() - 0.5) * 160,
+        y: cy + (Math.random() - 0.5) * 70,
+        alpha: 0.3 + Math.random() * 0.3,
+        pulse: 0
+      });
+    }
+  }
+
+  return { draw };
+})();
+
+// =====================================================================
+//  模块九：Web Audio 环境音系统
+// =====================================================================
+const AudioSystem = (() => {
+  let ctx, masterGain;
+  let started = false;
+
+  function init() {
+    if (started) return;
+    ctx = new (window.AudioContext || window.webkitAudioContext)();
+    masterGain = ctx.createGain();
+    masterGain.gain.value = 0.03; // 极低音量
+    masterGain.connect(ctx.destination);
+    started = true;
+
+    startDrone();
+    startBuzz();
+    startPulse();
+  }
+
+  function startDrone() {
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.value = 55;
+    gain.gain.value = 0.4;
+    osc.connect(gain);
+    gain.connect(masterGain);
+    osc.start();
+
+    // 缓慢频率调制
+    const lfo = ctx.createOscillator();
+    const lfoGain = ctx.createGain();
+    lfo.frequency.value = 0.05;
+    lfoGain.gain.value = 5;
+    lfo.connect(lfoGain);
+    lfoGain.connect(osc.frequency);
+    lfo.start();
+  }
+
+  function startBuzz() {
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sawtooth';
+    osc.frequency.value = 120;
+    gain.gain.value = 0.05;
+    osc.connect(gain);
+    gain.connect(masterGain);
+    osc.start();
+
+    // 音量 LFO
+    const lfo = ctx.createOscillator();
+    const lfoGain = ctx.createGain();
+    lfo.frequency.value = 0.1;
+    lfoGain.gain.value = 0.03;
+    lfo.connect(lfoGain);
+    lfoGain.connect(gain.gain);
+    lfo.start();
+  }
+
+  function startPulse() {
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.value = 80;
+    gain.gain.value = 0;
+    osc.connect(gain);
+    gain.connect(masterGain);
+    osc.start();
+
+    // 间歇脉冲
+    function pulse() {
+      const now = ctx.currentTime;
+      gain.gain.setValueAtTime(0, now);
+      gain.gain.linearRampToValueAtTime(0.15, now + 0.05);
+      gain.gain.linearRampToValueAtTime(0, now + 0.3);
+      setTimeout(pulse, 3000 + Math.random() * 7000);
+    }
+    pulse();
+  }
+
+  // UI 音效
+  function playClick() {
+    if (!started) return;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.value = 1200;
+    gain.gain.value = 0.04;
+    osc.connect(gain);
+    gain.connect(masterGain);
+    osc.start();
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.05);
+    osc.stop(ctx.currentTime + 0.05);
+  }
+
+  function playGlitch() {
+    if (!started) return;
+    const bufSize = ctx.sampleRate * 0.08;
+    const buf = ctx.createBuffer(1, bufSize, ctx.sampleRate);
+    const data = buf.getChannelData(0);
+    for (let i = 0; i < bufSize; i++) data[i] = (Math.random() * 2 - 1) * 0.3;
+    const src = ctx.createBufferSource();
+    src.buffer = buf;
+    const gain = ctx.createGain();
+    gain.gain.value = 0.06;
+    src.connect(gain);
+    gain.connect(masterGain);
+    src.start();
+  }
+
+  function playAlert() {
+    if (!started) return;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'square';
+    osc.frequency.value = 440;
+    gain.gain.value = 0.03;
+    osc.connect(gain);
+    gain.connect(masterGain);
+    osc.start();
+    osc.frequency.linearRampToValueAtTime(880, ctx.currentTime + 0.1);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.2);
+    osc.stop(ctx.currentTime + 0.2);
+  }
+
+  return { init, playClick, playGlitch, playAlert };
+})();
+
+// =====================================================================
+//  模块十：AI 自动日志引擎
+// =====================================================================
+const AILogEngine = (() => {
+  const logs = [
+    // 系统扫描
+    { text: '> 正在扫描神经中继节点...', cls: 'auto' },
+    { text: '> 信号稳定性: 97.3% — 微弱波动检测到', cls: 'auto' },
+    { text: '> 重新连接节点 node_47...', cls: 'auto' },
+    { text: '> 警告: 检测到未知访问签名', cls: 'auto', glitch: true },
+    { text: '> 深层网络路由优化中...', cls: 'auto' },
+    { text: '> 量子密钥轮换完成 — 下次轮换: 300s', cls: 'auto' },
+    { text: '> 入侵检测系统: 正常运行', cls: 'auto' },
+    { text: '> 数据包过滤器: 12,847 条规则已加载', cls: 'auto' },
+    { text: '> 识别到 3 个异常流量源', cls: 'auto', alert: true },
+    { text: '> 正在分析加密流量模式...', cls: 'auto' },
+    { text: '> 防火墙状态: 所有端口已监控', cls: 'auto' },
+    { text: '> AI 推理引擎: 负载 34% — 运行正常', cls: 'auto' },
+    { text: '> 检测到端口扫描尝试 — 已拦截', cls: 'auto', glitch: true },
+    { text: '> 卫星中继延迟: 12ms — 连接稳定', cls: 'auto' },
+    { text: '> 内存完整性校验通过', cls: 'auto' },
+    { text: '> 正在更新威胁情报库...', cls: 'auto' },
+    { text: '> 网络拓扑变化: +2 节点, -1 节点', cls: 'auto' },
+    { text: '> 警告: 异常 DNS 查询来自 10.0.0.42', cls: 'auto', alert: true },
+    { text: '> SSL 证书验证: 全部通过', cls: 'auto' },
+    { text: '> 数据中心同步: 延迟 8ms', cls: 'auto' },
+    { text: '> 活跃威胁: 0 | 高危: 2 | 中危: 5', cls: 'auto' },
+    { text: '> 正在清理缓存碎片...', cls: 'auto' },
+    { text: '> 神经网络权重已更新', cls: 'auto' },
+    { text: '> 警告: 异常数据包大小 — 已隔离分析', cls: 'auto', glitch: true },
+    { text: '> 系统自检: 内核正常 | 驱动正常', cls: 'auto' },
+    { text: '> 检测到新的连接尝试 — 已记录', cls: 'auto' },
+    { text: '> 正在压缩日志文件...', cls: 'auto' },
+    { text: '> 密钥存储完整性: 已验证', cls: 'auto' },
+    { text: '> 信号源分析完成 — 来源: 加密', cls: 'auto' },
+    { text: '> 系统负载均衡: CPU 34% | GPU 89%', cls: 'auto' },
+  ];
+
+  const terminalOutput = $('#terminalOutput');
+  const terminalBody = $('#terminalBody');
+  let active = false;
+
+  function addLine(text, cls) {
+    const div = document.createElement('div');
+    div.className = 'output-line ' + cls;
+    div.textContent = text;
+    div.style.animation = 'fadeInUp .4s ease forwards';
+    terminalOutput.appendChild(div);
+    terminalBody.scrollTop = terminalBody.scrollHeight;
+
+    // 保持输出数量
+    while (terminalOutput.children.length > 120) {
+      terminalOutput.removeChild(terminalOutput.firstChild);
+    }
+  }
+
+  async function typeText(text, cls, speed) {
+    const div = document.createElement('div');
+    div.className = 'output-line ' + cls;
+    terminalOutput.appendChild(div);
+    for (let i = 0; i < text.length; i++) {
+      div.textContent += text[i];
+      terminalBody.scrollTop = terminalBody.scrollHeight;
+      await sleep(speed + Math.random() * speed);
+    }
+  }
+
+  function start() {
+    if (active) return;
+    active = true;
+    runCycle();
+  }
+
+  async function runCycle() {
+    if (!active) return;
+    const log = logs[Math.floor(Math.random() * logs.length)];
+
+    await typeText(log.text, log.cls || 'auto', 18 + Math.random() * 15);
+
+    if (log.glitch) {
+      GlitchEngine.trigger();
+      GlitchEngine.triggerChroma();
+      AudioSystem.playGlitch();
+    }
+    if (log.alert) {
+      AudioSystem.playAlert();
+      GlitchEngine.triggerTear();
+    }
+
+    // 随机间隔 4-12 秒
+    const nextDelay = 4000 + Math.random() * 8000;
+    setTimeout(runCycle, nextDelay);
+  }
+
+  return { start, addLine };
+})();
+
+// =====================================================================
+//  模块十-B：标签页切换系统
+// =====================================================================
+const TabSystem = (() => {
+  const tabs = $$('.terminal-tab');
+  const contents = [
+    $('#tabTerminal'),
+    $('#tabMonitor'),
+    $('#tabNetScan')
+  ];
+  let activeTab = 0;
+  let monitorStarted = false;
+
+  function switchTo(idx) {
+    if (idx === activeTab) return;
+    AudioSystem.playClick();
+    tabs.forEach(t => t.classList.remove('active'));
+    contents.forEach(c => c.style.display = 'none');
+    tabs[idx].classList.add('active');
+    contents[idx].style.display = 'block';
+    activeTab = idx;
+
+    // 监控标签页首次切换时启动
+    if (idx === 1 && !monitorStarted) {
+      monitorStarted = true;
+      MonitorSystem.start();
+    }
+
+    // 切换时触发微弱 Glitch
+    GlitchEngine.triggerChroma();
+  }
+
+  tabs.forEach((tab, i) => {
+    tab.addEventListener('click', () => switchTo(i));
+  });
+
+  return { switchTo };
+})();
+
+// =====================================================================
+//  模块十-C：监控面板系统
+// =====================================================================
+const MonitorSystem = (() => {
+  const output = $('#monitorOutput');
+  let active = false;
+
+  function addLine(text, cls) {
+    const div = document.createElement('div');
+    div.className = 'output-line ' + cls;
+    div.textContent = text;
+    div.style.animation = 'fadeInUp .3s ease forwards';
+    output.appendChild(div);
+    while (output.children.length > 80) output.removeChild(output.firstChild);
+  }
+
+  const monitorLogs = [
+    { text: '[监控] CPU 温度: 67°C — 正常范围', cls: 'info' },
+    { text: '[监控] 内存使用: 14.2 / 32 GB', cls: 'info' },
+    { text: '[监控] GPU 负载: 89% — 高负载运行', cls: 'warning' },
+    { text: '[监控] 磁盘 I/O: 245 MB/s 读取', cls: 'info' },
+    { text: '[监控] 网络带宽: 2.4 GB/s 下行', cls: 'info' },
+    { text: '[监控] 活跃进程: 847', cls: 'info' },
+    { text: '[监控] 线程数: 12,489', cls: 'info' },
+    { text: '[监控] 句柄数: 156,234', cls: 'info' },
+    { text: '[监控] GC 暂停: 2.3ms — 正常', cls: 'info' },
+    { text: '[监控] 堆内存: 8.7 / 16 GB', cls: 'info' },
+    { text: '[监控] 栈内存: 256 / 1024 MB', cls: 'info' },
+    { text: '[监控] 警告: GPU 温度接近阈值 (82°C)', cls: 'warning' },
+    { text: '[监控] 交换分区使用: 1.2 GB', cls: 'info' },
+    { text: '[监控] 文件描述符: 8,192 / 65,535', cls: 'info' },
+    { text: '[监控] TCP 连接: 2,847 活跃', cls: 'info' },
+    { text: '[监控] UDP 活动: 342 数据包/秒', cls: 'info' },
+    { text: '[监控] 警告: 检测到异常进程 PID 44721', cls: 'error' },
+    { text: '[监控] 已终止异常进程 PID 44721', cls: 'success' },
+    { text: '[监控] 系统负载: 3.42 / 2.87 / 2.65', cls: 'info' },
+    { text: '[监控] 运行时间: 47天 13时 22分', cls: 'info' },
+  ];
+
+  async function typeText(text, cls, speed) {
+    const div = document.createElement('div');
+    div.className = 'output-line ' + cls;
+    output.appendChild(div);
+    for (let i = 0; i < text.length; i++) {
+      div.textContent += text[i];
+      output.parentElement.scrollTop = output.parentElement.scrollHeight;
+      await sleep(speed + Math.random() * speed);
+    }
+  }
+
+  async function runCycle() {
+    if (!active) return;
+    const log = monitorLogs[Math.floor(Math.random() * monitorLogs.length)];
+    await typeText(log.text, log.cls, 12);
+    if (log.cls === 'error') { GlitchEngine.trigger(); AudioSystem.playAlert(); }
+    setTimeout(runCycle, 3000 + Math.random() * 5000);
+  }
+
+  function start() {
+    if (active) return;
+    active = true;
+    addLine('[监控] 实时监控系统已激活', 'success');
+    addLine('[监控] 正在收集系统指标...', 'info');
+    runCycle();
+  }
+
+  function stop() { active = false; }
+
+  return { start, stop };
+})();
+
+// =====================================================================
+//  模块十-D：网络扫描系统
+// =====================================================================
+const NetScanSystem = (() => {
+  const output = $('#netScanOutput');
+  const input = $('#netScanInput');
+  let scanCount = 0;
+
+  function addLine(text, cls) {
+    const div = document.createElement('div');
+    div.className = 'output-line ' + cls;
+    div.textContent = text;
+    div.style.animation = 'fadeInUp .3s ease forwards';
+    output.appendChild(div);
+    while (output.children.length > 60) output.removeChild(output.firstChild);
+  }
+
+  function addHTML(html) {
+    const div = document.createElement('div');
+    div.innerHTML = html;
+    output.appendChild(div);
+    output.parentElement.scrollTop = output.parentElement.scrollHeight;
+  }
+
+  async function scanTarget(target) {
+    scanCount++;
+    addLine('', '');
+    addLine(`[扫描 #${scanCount}] 目标: ${target}`, 'info');
+    addLine(`[扫描] 正在初始化扫描引擎...`, 'system');
+    await sleep(300);
+
+    // 进度条
+    const progressDiv = document.createElement('div');
+    progressDiv.className = 'net-scan-progress';
+    progressDiv.innerHTML = `<span>扫描进度</span><div class="nsp-bar"><div class="nsp-fill"></div></div><span class="nsp-pct">0%</span>`;
+    output.appendChild(progressDiv);
+    const fill = progressDiv.querySelector('.nsp-fill');
+    const pctEl = progressDiv.querySelector('.nsp-pct');
+
+    for (let p = 0; p <= 100; p += 2 + Math.floor(Math.random() * 5)) {
+      fill.style.width = Math.min(p, 100) + '%';
+      pctEl.textContent = Math.min(p, 100) + '%';
+      await sleep(50 + Math.random() * 80);
+    }
+    fill.style.width = '100%';
+    pctEl.textContent = '100%';
+    await sleep(200);
+
+    // 生成随机结果
+    const ports = [];
+    const portCount = 2 + Math.floor(Math.random() * 8);
+    const commonPorts = [
+      { port: 22, service: 'SSH', state: 'open' },
+      { port: 80, service: 'HTTP', state: 'open' },
+      { port: 443, service: 'HTTPS', state: 'open' },
+      { port: 3306, service: 'MySQL', state: Math.random() > 0.5 ? 'open' : 'filtered' },
+      { port: 5432, service: 'PostgreSQL', state: Math.random() > 0.6 ? 'open' : 'closed' },
+      { port: 8080, service: 'HTTP-Proxy', state: 'open' },
+      { port: 6379, service: 'Redis', state: Math.random() > 0.5 ? 'open' : 'closed' },
+      { port: 27017, service: 'MongoDB', state: Math.random() > 0.7 ? 'open' : 'closed' },
+      { port: 4444, service: 'Metasploit', state: Math.random() > 0.8 ? 'open' : 'closed' },
+      { port: 8443, service: 'HTTPS-Alt', state: 'open' },
+    ];
+    const selected = commonPorts.sort(() => Math.random() - 0.5).slice(0, portCount);
+    selected.sort((a, b) => a.port - b.port);
+
+    const vulnCount = Math.floor(Math.random() * 3);
+    const riskLevel = vulnCount === 0 ? '低' : vulnCount === 1 ? '中' : '高';
+    const riskColor = vulnCount === 0 ? 'green' : vulnCount === 1 ? 'amber' : 'red';
+
+    addHTML(`<div class="net-scan-result">
+      <div class="nsr-ip">${target}</div>
+      <div class="nsr-status">状态: 在线 | 延迟: ${(5 + Math.random() * 50).toFixed(0)}ms | TTL: ${[64, 128, 255][Math.floor(Math.random() * 3)]}</div>
+      <div class="nsr-ports">开放端口: ${selected.length} | 漏洞: ${vulnCount} | 风险: <span style="color:var(--${riskColor})">${riskLevel}</span></div>
+      <div class="nsr-ports" style="margin-top:3px">${selected.map(p =>
+        `<span style="color:${p.state==='open'?'var(--green)':p.state==='filtered'?'var(--amber)':'var(--red)'}">${p.port}/${p.state}</span> ${p.service}`
+      ).join(' | ')}</div>
+    </div>`);
+
+    if (vulnCount > 0) {
+      addLine(`[扫描] 发现 ${vulnCount} 个潜在漏洞`, 'warning');
+      AudioSystem.playAlert();
+      GlitchEngine.trigger();
+    } else {
+      addLine(`[扫描] 未发现明显漏洞`, 'success');
+    }
+    addLine(`[扫描] 扫描完成`, 'info');
+  }
+
+  // 默认扫描目标
+  const defaultTargets = [
+    '192.168.1.1', '10.0.0.1', '172.16.0.1', '8.8.8.8',
+    '185.220.101.42', '45.33.32.001', '203.0.113.254'
+  ];
+
+  input.addEventListener('keydown', async (e) => {
+    if (e.key === 'Enter') {
+      const val = input.value.trim() || defaultTargets[Math.floor(Math.random() * defaultTargets.length)];
+      input.value = '';
+      AudioSystem.playClick();
+      await scanTarget(val);
+    }
+  });
+
+  // 初始显示
+  function init() {
+    addLine('[网络扫描] 输入 IP 或域名开始扫描', 'info');
+    addLine('[网络扫描] 直接回车扫描随机目标', 'system');
+    addLine('─'.repeat(50), 'system');
+  }
+
+  return { init, scanTarget };
+})();
+
+// =====================================================================
+//  模块十一：主渲染循环
+// =====================================================================
+let animFrame = 0;
+function mainLoop() {
+  animFrame++;
+  GridSystem.draw(animFrame);
+  MatrixRain.draw();
+  ParticleSystem.draw();
+  FogSystem.draw(animFrame);
+  CRTSystem.draw(animFrame);
+  RadarSystem.draw();
+  requestAnimationFrame(mainLoop);
+}
+
+// =====================================================================
+//  模块十二：HUD 数据模拟
+// =====================================================================
+const HUDSystem = (() => {
+  function updateClock() {
+    const now = new Date();
+    const h = String(now.getHours()).padStart(2, '0');
+    const m = String(now.getMinutes()).padStart(2, '0');
+    const s = String(now.getSeconds()).padStart(2, '0');
+    $('#hudTime').textContent = `${h}:${m}:${s}`;
+  }
+
+  function updateStats() {
+    const cpu = 20 + Math.floor(Math.random() * 30);
+    const mem = 55 + Math.floor(Math.random() * 25);
+    const gpu = 75 + Math.floor(Math.random() * 20);
+    const net = (1 + Math.random() * 4).toFixed(1);
+
+    $('#cpuVal').textContent = cpu + '%';
+    $('#cpuBar').style.width = cpu + '%';
+    $('#cpuBar').className = 'bar-fill ' + (cpu > 60 ? 'red' : cpu > 40 ? 'amber' : 'cyan');
+
+    $('#memVal').textContent = mem + '%';
+    $('#memBar').style.width = mem + '%';
+    $('#memBar').className = 'bar-fill ' + (mem > 75 ? 'red' : mem > 60 ? 'amber' : 'cyan');
+
+    $('#gpuVal').textContent = gpu + '%';
+    $('#gpuBar').style.width = gpu + '%';
+    $('#gpuBar').className = 'bar-fill ' + (gpu > 85 ? 'red' : gpu > 70 ? 'amber' : 'cyan');
+
+    $('#netIO').textContent = net + ' GB/s';
+    $('#netBar').style.width = (net / 5 * 100) + '%';
+
+    $('#latency').textContent = (8 + Math.floor(Math.random() * 15)) + 'ms';
+    const nodes = 2800 + Math.floor(Math.random() * 100);
+    $('#nodeCount').textContent = nodes.toLocaleString();
+  }
+
+  // 连接列表
+  const ipSeg = () => `${Math.floor(Math.random()*223)+1}.${Math.floor(Math.random()*255)}.${Math.floor(Math.random()*255)}.${Math.floor(Math.random()*255)}`;
+  const protos = ['TCP','UDP','QUIC','TLS','SSH','WSS'];
+  const conns = [];
+  function updateConns() {
+    if (conns.length > 5) conns.shift();
+    conns.push(`${ipSeg()} ${protos[Math.floor(Math.random()*protos.length)]} ${(Math.random()*500).toFixed(0)}ms`);
+    let html = '';
+    conns.forEach(c => { html += `<div style="margin:3px 0;color:${Math.random()>0.3?'var(--cyan-dim)':'var(--green-dim)'}">${c}</div>`; });
+    $('#connList').innerHTML = html;
+  }
+
+  // 数据包计数
+  let pkt = 0;
+  function updatePkt() {
+    pkt += Math.floor(Math.random() * 500) + 100;
+    $('#packetCount').textContent = '数据包: ' + pkt.toLocaleString();
+  }
+
+  function start() {
+    setInterval(updateClock, 1000); updateClock();
+    setInterval(updateStats, 3000); updateStats();
+    setInterval(updateConns, 4000); updateConns();
+    setInterval(updatePkt, 500);
+  }
+
+  return { start };
+})();
+
+// =====================================================================
+//  模块十三：Hex 数据流 + 浮动数据
+// =====================================================================
+const DataStreamSystem = (() => {
+  function generateHex() {
+    const el = $('#hexStream');
+    const c = 'アイウエオ0123456789ABCDEF黑域系统';
+    let html = '';
+    for (let i = 0; i < 25; i++) {
+      let line = '';
+      for (let j = 0; j < 75; j++) line += Math.random() > 0.35 ? c[Math.floor(Math.random() * c.length)] : ' ';
+      html += line + '\n';
+    }
+    el.innerHTML = html;
+  }
+
+  function createFloating() {
+    const container = $('#floatingData');
+    const snippets = [
+      '0x4F2A::SYS_INIT','PKT_RECV::0x8B3C','AES::512BIT::OK',
+      'ROUTE::NODE_2847','HASH::SHA3::VERIFIED','TCP::SYN::ACK',
+      'FIREWALL::BLOCK::192.168','SSL::TLS1.3::ACTIVE','DNS::RESOLVE::OK',
+      'VPN::TUNNEL::ESTABLISHED','NEURAL::SYNC::OK','QUANTUM::KEY::ROTATED'
+    ];
+    for (let i = 0; i < 6; i++) {
+      const el = document.createElement('div');
+      el.className = 'float-data';
+      el.style.left = Math.random() * 90 + '%';
+      el.style.animationDuration = 18 + Math.random() * 20 + 's';
+      el.style.animationDelay = Math.random() * 10 + 's';
+      el.textContent = snippets[Math.floor(Math.random() * snippets.length)];
+      container.appendChild(el);
+    }
+  }
+
+  return { generateHex, createFloating };
+})();
+
+// =====================================================================
+//  模块十四：启动序列 + 终端命令系统
+// =====================================================================
+const BootSequence = (() => {
+  const bootLines = [
+    { text: '黑域安全终端 v8.0.0', cls: 'title' },
+    { text: '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━', cls: '' },
+    { text: '初始化量子加密握手...', cls: '' },
+    { text: '[OK] 神经链路已建立', cls: 'ok' },
+    { text: '[OK] 量子密钥分发已验证', cls: 'ok' },
+    { text: '[OK] AES-512 加密层已激活', cls: 'ok' },
+    { text: '[OK] Tor 覆盖网络已连接', cls: 'ok' },
+    { text: '[OK] 零知识证明已通过', cls: 'ok' },
+    { text: '', cls: '' },
+    { text: '加载子系统...', cls: '' },
+    { text: '[OK] 威胁检测引擎', cls: 'ok' },
+    { text: '[OK] 网络拓扑映射器', cls: 'ok' },
+    { text: '[OK] 数据包检测模块', cls: 'ok' },
+    { text: '[OK] AI 推理加速器', cls: 'ok' },
+    { text: '[OK] CRT 后处理着色器', cls: 'ok' },
+    { text: '[OK] 全息核心渲染器', cls: 'ok' },
+    { text: '[WARN] 端口 7734 检测到异常信号', cls: 'warn' },
+    { text: '[OK] 信号已隔离并中和', cls: 'ok' },
+    { text: '[OK] 防火墙规则已加载 (12,847 条规则)', cls: 'ok' },
+    { text: '[OK] 入侵检测特征库已更新 (v2049.12.23)', cls: 'ok' },
+    { text: '', cls: '' },
+    { text: '建立安全上行链路...', cls: '' },
+    { text: '[OK] 主链路: 活跃', cls: 'ok' },
+    { text: '[OK] 备用链路: 待命', cls: 'ok' },
+    { text: '[OK] 卫星中继: 已连接', cls: 'ok' },
+    { text: '[OK] 深网节点: 2,847 在线', cls: 'ok' },
+    { text: '', cls: '' },
+    { text: '系统完整性检查...', cls: '' },
+    { text: '[OK] 内核哈希: 已验证', cls: 'ok' },
+    { text: '[OK] 内存完整性: 正常', cls: 'ok' },
+    { text: '[OK] 未检测到 Rootkit', cls: 'ok' },
+    { text: '[ERR] 来自 45.33.32.001 的追踪尝试 — 已拦截', cls: 'err' },
+    { text: '[OK] 反向追踪来源 — 失败 (无匹配)', cls: 'ok' },
+    { text: '', cls: '' },
+    { text: '所有系统运行正常。', cls: '' },
+    { text: '欢迎来到黑域。', cls: 'ok' },
+  ];
+
+  let bootIdx = 0;
+  const bootTextEl = $('#bootText');
+  const bootFill = $('#bootProgressFill');
+  const bootPct = $('#bootPercentage');
+
+  function runLine() {
+    if (bootIdx >= bootLines.length) {
+      bootFill.style.width = '100%';
+      bootPct.textContent = '100%';
+      setTimeout(() => {
+        $('#bootScreen').classList.add('hidden');
+        setTimeout(() => {
+          $('#mainUI').classList.add('visible');
+          TerminalSystem.init();
+          AILogEngine.start();
+        }, 1000);
+      }, 700);
+      return;
+    }
+
+    const line = bootLines[bootIdx];
+    const div = document.createElement('div');
+    div.className = 'output-line ' + line.cls;
+    div.textContent = line.text;
+    div.style.animation = 'fadeInUp .3s ease forwards';
+    bootTextEl.appendChild(div);
+    bootTextEl.scrollTop = bootTextEl.scrollHeight;
+
+    const pct = Math.min(100, Math.floor((bootIdx / bootLines.length) * 100));
+    bootFill.style.width = pct + '%';
+    bootPct.textContent = pct + '%';
+
+    bootIdx++;
+    setTimeout(runLine, line.text === '' ? 40 : (35 + Math.random() * 65));
+  }
+
+  function start() {
+    setTimeout(() => {
+      $('#bootLogo').classList.add('show');
+      setTimeout(runLine, 700);
+    }, 600);
+  }
+
+  return { start };
+})();
+
+// =====================================================================
+//  模块十五：终端命令系统
+// =====================================================================
+const TerminalSystem = (() => {
+  const terminalOutput = $('#terminalOutput');
+  const inputField = $('#inputField');
+  const terminalBody = $('#terminalBody');
+  let commandHistory = [];
+  let historyIndex = -1;
+  let ready = false;
+
+  function addOutput(text, cls = 'info') {
+    const div = document.createElement('div');
+    div.className = 'output-line ' + cls;
+    div.innerHTML = text;
+    terminalOutput.appendChild(div);
+    terminalBody.scrollTop = terminalBody.scrollHeight;
+  }
+
+  async function addTyped(text, cls = 'info', speed = 15) {
+    return new Promise(resolve => {
+      const div = document.createElement('div');
+      div.className = 'output-line ' + cls;
+      terminalOutput.appendChild(div);
+      let i = 0;
+      const type = () => {
+        if (i < text.length) {
+          div.textContent += text[i]; i++;
+          terminalBody.scrollTop = terminalBody.scrollHeight;
+          setTimeout(type, speed + Math.random() * speed);
+        } else resolve();
+      };
+      type();
+    });
+  }
+
+  async function initSequence() {
+    ready = false; inputField.disabled = true;
+    await addTyped('>>> 建立安全终端会话...', 'system', 18);
+    await sleep(250);
+    addOutput('[会话] 加密通道已建立', 'success');
+    await sleep(150);
+    addOutput('[会话] Root 权限已授予 — 权限等级: OMEGA', 'success');
+    await sleep(150);
+    addOutput('[会话] 命令历史已加载 (上次登录: 2049-12-23 03:44:17)', 'system');
+    await sleep(200);
+    addOutput('', '');
+    addOutput('╔══════════════════════════════════════════════════════╗', 'info');
+    addOutput('║  黑域终端 — 输入 "help" 查看可用命令              ║', 'info');
+    addOutput('║  机密 // 需要 5 级权限                            ║', 'info');
+    addOutput('╚══════════════════════════════════════════════════════╝', 'info');
+    addOutput('', '');
+    ready = true; inputField.disabled = false; inputField.focus();
+  }
+
+  const commands = {
+    help: () => {
+      addOutput('', '');
+      addOutput('╔══════════════════════════════════════╗', 'info');
+      addOutput('║          可用命令列表                ║', 'info');
+      addOutput('╠══════════════════════════════════════╣', 'info');
+      addOutput('║  help       — 显示此菜单            ║', 'info');
+      addOutput('║  scan       — 网络漏洞扫描          ║', 'info');
+      addOutput('║  trace      — 追踪 IP 地址          ║', 'info');
+      addOutput('║  decrypt    — 解密数据流            ║', 'info');
+      addOutput('║  breach     — 尝试系统突破          ║', 'info');
+      addOutput('║  status     — 系统状态报告          ║', 'info');
+      addOutput('║  intel      — 收集情报              ║', 'info');
+      addOutput('║  inject     — 注入载荷              ║', 'info');
+      addOutput('║  shadow     — 激活影子模式          ║', 'info');
+      addOutput('║  clear      — 清空终端              ║', 'info');
+      addOutput('║  matrix     — 进入矩阵              ║', 'info');
+      addOutput('║  whoami     — 用户身份              ║', 'info');
+      addOutput('║  exit       — 终止会话              ║', 'info');
+      addOutput('╚══════════════════════════════════════╝', 'info');
+      addOutput('', '');
+    },
+
+    scan: async () => {
+      addOutput('[扫描] 启动网络漏洞扫描...', 'warning'); await sleep(500);
+      addOutput('[扫描] 探测端口 1-65535...', 'system'); await sleep(800);
+      addOutput('[扫描] 在 12 个子网中检测到 847 个开放端口', 'warning'); await sleep(400);
+      addOutput('[扫描] 严重: 在 3 个节点发现 CVE-2049-7734', 'error'); await sleep(300);
+      addOutput('[扫描] 严重: node_alpha 上存在未修补的 SSH 守护进程', 'error'); await sleep(200);
+      addOutput('[扫描] 已识别 23 个潜在入口点', 'warning'); await sleep(400);
+      addOutput('[扫描] 漏洞图谱已保存至 /tmp/vuln_map.bin', 'success');
+      addOutput('[扫描] 扫描完成。3 个严重, 12 个高危, 8 个中危', 'success');
+      GlitchEngine.trigger(); GlitchEngine.triggerChroma(); AudioSystem.playGlitch();
+    },
+
+    trace: async () => {
+      const ips = ['45.33.32.001','185.220.101.42','198.51.100.77','203.0.113.254'];
+      const target = ips[Math.floor(Math.random() * ips.length)];
+      addOutput(`[追踪] 目标: ${target}`, 'warning'); await sleep(300);
+      addOutput('[追踪] 通过 7 个代理节点路由...', 'system');
+      const proxies = ['tor_node_47','i2p_relay_12','vpn_exit_89','sat_relays_3'];
+      for (const p of proxies) { await sleep(400); addOutput(`[追踪] → ${p}`, 'system'); }
+      await sleep(600);
+      addOutput(`[追踪] 跳数: 14 | 延迟: 347ms`, 'system'); await sleep(300);
+      const locs = ['上海, CN','莫斯科, RU','圣保罗, BR','柏林, DE','东京, JP'];
+      addOutput(`[追踪] 位置: ${locs[Math.floor(Math.random() * locs.length)]}`, 'warning');
+      addOutput(`[追踪] ISP: ShadowNet 通信`, 'system');
+      addOutput(`[追踪] 主机名: darknode-${Math.floor(Math.random()*999)}.shadow.net`, 'system');
+      addOutput('[追踪] 警告: 目标可能正在监控此追踪', 'error'); await sleep(200);
+      addOutput('[追踪] 追踪完成。', 'success');
+      GlitchEngine.trigger(); AudioSystem.playGlitch();
+    },
+
+    decrypt: async () => {
+      addOutput('[解密] 截获加密数据流...', 'warning'); await sleep(500);
+      addOutput('[解密] 密码: RSA-4096 + AES-256-GCM', 'system'); await sleep(600);
+      addOutput('[解密] 应用量子密钥恢复算法...', 'system'); await sleep(800);
+      addOutput('[解密] ████████████████████░░░░░░ 78%', 'info'); await sleep(500);
+      addOutput('[解密] ██████████████████████████ 100%', 'info'); await sleep(300);
+      addOutput('[解密] 密钥在 2.4 秒内恢复', 'success'); await sleep(200);
+      addOutput('[解密] 明文片段:', 'warning');
+      addOutput('  "日蚀计划 — 第三阶段已授权。资产黑光', 'highlight');
+      addOutput('   已被渗透。启动应急协议西格玛。"', 'highlight');
+      addOutput('[解密] 警告: 该数据为机密等级 OMEGA', 'error');
+      GlitchEngine.trigger(); GlitchEngine.triggerChroma(); AudioSystem.playGlitch();
+    },
+
+    breach: async () => {
+      addOutput('[突破] 初始化入侵框架...', 'error'); await sleep(400);
+      addOutput('[突破] 加载漏洞利用模块...', 'system');
+      const mods = ['buffer_overflow.so','priv_esc_v4.so','rootkit_stealth.so','data_exfil.so'];
+      for (const m of mods) { await sleep(200); addOutput(`[突破]   ✓ ${m}`, 'success'); }
+      await sleep(500);
+      addOutput('[突破] 目标: 主机房_ALPHA (10.0.0.1)', 'warning'); await sleep(300);
+      addOutput('[突破] 发送漏洞利用载荷...', 'error'); await sleep(1000);
+      addOutput('[突破] ████████████████████████████', 'error'); await sleep(400);
+      addOutput('[突破] 防火墙已绕过 — 正在获取访问权限...', 'warning'); await sleep(600);
+      addOutput('[突破] root@mainframe_alpha:~# Shell 已获取', 'success'); await sleep(200);
+      addOutput('[突破] 访问级别: ROOT | 会话: 已加密', 'success');
+      addOutput('[突破] 正在向安全站点传输数据...', 'system'); await sleep(800);
+      addOutput('[突破] 847.3 MB 已传输。投递已确认。', 'success');
+      GlitchEngine.trigger(); GlitchEngine.trigger(); AudioSystem.playGlitch(); AudioSystem.playAlert();
+    },
+
+    status: () => {
+      addOutput('', '');
+      addOutput('┌─── 系统状态报告 ────────────────────────┐', 'info');
+      addOutput('│ 运行时间: 47天 13时 22分 08秒            │', 'info');
+      addOutput(`│ CPU: ${$('#cpuVal').textContent} | 内存: ${$('#memVal').textContent} | GPU: ${$('#gpuVal').textContent}  │`, 'info');
+      addOutput('│ 网络: 2,847 节点在线                     │', 'info');
+      addOutput('│ 防火墙: 活跃 (12,847 条规则)             │', 'info');
+      addOutput('│ 入侵检测: 武装 | 加密: AES-512           │', 'info');
+      addOutput('│ 威胁等级: 升高                           │', 'warning');
+      addOutput('│ 活跃行动: 3                              │', 'warning');
+      addOutput('│ 待处理告警: 23                           │', 'error');
+      addOutput('└──────────────────────────────────────────┘', 'info');
+      addOutput('', '');
+    },
+
+    intel: async () => {
+      addOutput('[情报] 访问机密情报数据库...', 'warning'); await sleep(500);
+      addOutput('[情报] 权限: 5级 — 访问已授权', 'success'); await sleep(300);
+      addOutput('[情报] ━━━ 活跃行动 ━━━', 'info'); await sleep(200);
+      addOutput('  ▸ 行动夜幕 — 渗透 HADES 网络', 'system');
+      addOutput('    状态: 进行中 | 阶段: 3/5', 'system');
+      addOutput('    资产: 影子-07 | 风险: 高', 'warning'); await sleep(400);
+      addOutput('  ▸ 行动断电 — 基础设施破坏', 'system');
+      addOutput('    状态: 待命 | 触发: 待定', 'system');
+      addOutput('    目标: 14 个关键节点', 'system'); await sleep(400);
+      addOutput('  ▸ 行动镜像 — 反情报行动', 'system');
+      addOutput('    状态: 活跃 | 伪装: 维持中', 'success');
+      addOutput('    情报价值: 关键', 'warning'); await sleep(300);
+      addOutput('[情报] 3 个行动 | 7 个资产已部署 | 风险: 高', 'warning');
+      addOutput('[情报] 简报结束。', 'system');
+      GlitchEngine.trigger();
+    },
+
+    inject: async () => {
+      addOutput('[注入] 准备载荷投递...', 'warning'); await sleep(300);
+      addOutput('[注入] 载荷: reverse_shell_v3.enc (2.4KB)', 'system'); await sleep(200);
+      addOutput('[注入] 目标向量: 端口 443 SQL 注入', 'system'); await sleep(400);
+      addOutput('[注入] 使用多态密码编码...', 'system'); await sleep(600);
+      addOutput('[注入] 投递载荷...', 'error'); await sleep(800);
+      addOutput('[注入] 载荷投递成功', 'success'); await sleep(200);
+      addOutput('[注入] 在端口 4444 建立回调...', 'system'); await sleep(500);
+      addOutput('[注入] 回调已建立 — Shell 即将到来', 'success');
+      addOutput('[注入] 注意: 会话将在 300 秒后自动终止', 'warning');
+      GlitchEngine.trigger(); AudioSystem.playGlitch();
+    },
+
+    shadow: async () => {
+      addOutput('[影子] 激活影子模式...', 'warning'); await sleep(400);
+      addOutput('[影子] 伪造 MAC 地址: AA:BB:CC:DD:EE:FF', 'system'); await sleep(200);
+      addOutput('[影子] 通过 14 个代理轮换 IP...', 'system'); await sleep(600);
+      addOutput('[影子] 流量分片: 已启用', 'system'); await sleep(200);
+      addOutput('[影子] 时序混淆: 已启用', 'system'); await sleep(300);
+      addOutput('[影子] DNS 泄漏保护: 已武装', 'system'); await sleep(200);
+      addOutput('[影子] ████████████████████████████', 'info'); await sleep(400);
+      addOutput('[影子] 影子模式: 已激活', 'success');
+      addOutput('[影子] 你对所有监控系统已不可见。', 'success');
+      addOutput('[影子] 警告: 影子模式将在 1800 秒后过期', 'warning');
+      GlitchEngine.trigger();
+    },
+
+    matrix: async () => {
+      addOutput('', '');
+      addOutput('  ███╗   ███╗ █████╗ ███████╗████████╗███████╗██████╗ ███╗   ███╗', 'ascii');
+      addOutput('  ████╗ ████║██╔══██╗██╔════╝╚══██╔══╝██╔════╝██╔══██╗████╗ ████║', 'ascii');
+      addOutput('  ██╔████╔██║███████║███████╗   ██║   █████╗  ██████╔╝██╔████╔██║', 'ascii');
+      addOutput('  ██║╚██╔╝██║██╔══██║╚════██║   ██║   ██╔══╝  ██╔══██╗██║╚██╔╝██║', 'ascii');
+      addOutput('  ██║ ╚═╝ ██║██║  ██║███████║   ██║   ███████╗██║  ██║██║ ╚═╝ ██║', 'ascii');
+      addOutput('  ╚═╝     ╚═╝╚═╝  ╚═╝╚══════╝   ╚═╝   ╚══════╝╚═╝  ╚═╝╚═╝     ╚═╝', 'ascii');
+      addOutput('', '');
+      addOutput('[矩阵] 醒醒，Neo...', 'highlight'); await sleep(600);
+      addOutput('[矩阵] 矩阵在注视着你...', 'highlight'); await sleep(600);
+      addOutput('[矩阵] 跟随白兔。', 'highlight');
+      addOutput('', '');
+      GlitchEngine.trigger(); setTimeout(GlitchEngine.trigger, 200);
+      setTimeout(GlitchEngine.trigger, 500);
+      AudioSystem.playGlitch();
+    },
+
+    whoami: () => {
+      addOutput('', '');
+      addOutput('  用户: root', 'highlight');
+      addOutput('  角色: 系统管理员 / 外勤特工', 'info');
+      addOutput('  权限: OMEGA (5级)', 'warning');
+      addOutput('  代号: 幻影', 'highlight');
+      addOutput('  状态: 活跃', 'success');
+      addOutput('  上次登录: 2049-12-23 03:44:17 UTC', 'system');
+      addOutput('  会话: 已加密 | Tor 已验证', 'system');
+      addOutput('', '');
+    },
+
+    clear: () => { terminalOutput.innerHTML = ''; },
+
+    exit: async () => {
+      addOutput('[会话] 终止安全会话...', 'warning'); await sleep(300);
+      addOutput('[会话] 清除命令历史...', 'system'); await sleep(200);
+      addOutput('[会话] 清除内存缓冲区...', 'system'); await sleep(300);
+      addOutput('[会话] 断开与黑域的连接...', 'error'); await sleep(500);
+      addOutput('[会话] 会话已终止。留在阴影中。', 'success');
+      inputField.disabled = true;
+      await sleep(2000);
+      terminalOutput.innerHTML = '';
+      inputField.disabled = false;
+      initSequence();
+    }
+  };
+
+  inputField.addEventListener('keydown', async (e) => {
+    if (!ready) return;
+    if (e.key === 'Enter') {
+      const val = inputField.value.trim();
+      if (!val) return;
+      commandHistory.push(val);
+      historyIndex = commandHistory.length;
+      addOutput(`<span style="color:var(--green)">root@黑域:~$</span> ${val}`, 'system');
+      inputField.value = '';
+      AudioSystem.playClick();
+      const parts = val.toLowerCase().split(/\s+/);
+      const cmd = parts[0];
+      if (commands[cmd]) await commands[cmd](parts.slice(1));
+      else addOutput(`[错误] 未知命令: "${cmd}" — 输入 "help" 查看可用命令`, 'error');
+    }
+    if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      if (historyIndex > 0) { historyIndex--; inputField.value = commandHistory[historyIndex]; }
+    }
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      if (historyIndex < commandHistory.length - 1) { historyIndex++; inputField.value = commandHistory[historyIndex]; }
+      else { historyIndex = commandHistory.length; inputField.value = ''; }
+    }
+  });
+
+  $('.terminal-container').addEventListener('click', () => { if (ready) inputField.focus(); });
+
+  return { init: initSequence };
+})();
+
+// =====================================================================
+//  模块十六：随机视觉事件
+// =====================================================================
+const VisualEvents = (() => {
+  function start() {
+    // 随机 Glitch
+    setInterval(() => {
+      if (Math.random() > 0.65) {
+        GlitchEngine.trigger();
+        if (Math.random() > 0.7) GlitchEngine.triggerChroma();
+        if (Math.random() > 0.8) GlitchEngine.triggerTear();
+      }
+    }, 5000);
+
+    // 入侵警告
+    setTimeout(() => {
+      showWarning();
+      setInterval(() => { if (Math.random() > 0.6) showWarning(); }, 35000);
+    }, 25000);
+
+    // 全息卡
+    setTimeout(() => {
+      updateHolo();
+      setInterval(updateHolo, 18000);
+    }, 15000);
+
+    // UI 不稳定性
+    setInterval(() => {
+      const panels = $$('.panel-box');
+      const p = panels[Math.floor(Math.random() * panels.length)];
+      if (p) {
+        p.classList.add('flicker-active');
+        setTimeout(() => p.classList.remove('flicker-active'), 6000);
+      }
+    }, 12000);
+
+    setInterval(() => {
+      const el = Math.random() > 0.5 ? $('.top-hud') : $('.terminal-container');
+      el.classList.add('shift-active');
+      setTimeout(() => el.classList.remove('shift-active'), 12000);
+    }, 20000);
+  }
+
+  function showWarning() {
+    const overlay = $('#warningOverlay');
+    overlay.classList.add('active');
+    GlitchEngine.trigger();
+    AudioSystem.playAlert();
+    setTimeout(() => overlay.classList.remove('active'), 3000);
+  }
+
+  function updateHolo() {
+    const targets = ['节点_阿尔法','主机_贝塔','中继_伽马','网关_德尔塔','核心_厄普西隆'];
+    const locs = ['10.0.0.1','172.16.0.42','192.168.1.100','10.10.10.5','172.31.0.254'];
+    const protos = ['TCP/443','UDP/53','SSH/22','QUIC/443','WSS/8443'];
+    const statuses = ['已渗透','已突破','已入侵','已提取'];
+    const encs = ['AES-512','RSA-4096','CHACHA20','量子安全'];
+    const pick = arr => arr[Math.floor(Math.random() * arr.length)];
+
+    $('#holoTarget').textContent = pick(targets);
+    $('#holoLocation').textContent = pick(locs);
+    $('#holoProtocol').textContent = pick(protos);
+    $('#holoStatus').textContent = pick(statuses);
+    $('#holoEnc').textContent = pick(encs);
+
+    $('#holoCard').classList.add('visible');
+    setTimeout(() => $('#holoCard').classList.remove('visible'), 6000);
+  }
+
+  return { start };
+})();
+
+// =====================================================================
+//  模块初始化
+// =====================================================================
+document.addEventListener('click', () => { AudioSystem.init(); }, { once: true });
+document.addEventListener('keydown', () => { AudioSystem.init(); }, { once: true });
+
+DataStreamSystem.generateHex();
+DataStreamSystem.createFloating();
+mainLoop();
+BootSequence.start();
+HUDSystem.start();
+VisualEvents.start();
+NetScanSystem.init();
+
+// =====================================================================
+//  模块十八：拖拽分割器
+// =====================================================================
+(() => {
+  const divider = $('#dragDivider');
+  const sidePanel = $('#sidePanel');
+  const term = $('.terminal-container');
+  let isDragging = false;
+
+  divider.addEventListener('mousedown', (e) => {
+    isDragging = true;
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+    e.preventDefault();
+  });
+
+  document.addEventListener('mousemove', (e) => {
+    if (!isDragging) return;
+    const container = $('.split-layout');
+    const rect = container.getBoundingClientRect();
+    const mouseX = e.clientX - rect.left;
+    const totalWidth = rect.width;
+
+    // 限制范围
+    const minTerm = 200;
+    const minSide = 160;
+    const dividerW = 6;
+
+    let sideWidth = totalWidth - mouseX - dividerW;
+    sideWidth = Math.max(minSide, Math.min(sideWidth, totalWidth * 0.6));
+
+    sidePanel.style.width = sideWidth + 'px';
+  });
+
+  document.addEventListener('mouseup', () => {
+    if (isDragging) {
+      isDragging = false;
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    }
+  });
+})();
+</script>
+</body>
+</html>
